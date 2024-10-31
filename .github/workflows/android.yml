@@ -1,69 +1,42 @@
-name: RELEASE BUILD - Maven 📦 Distribution
+name: Android CI
 
-on: [push, pull_request, release, workflow_dispatch]
+on: [push, pull_request]
 
 jobs:
-  build_jars:
-    name: Build JARs on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up JDK 8
-        uses: actions/setup-java@v3
-        with:
-          java-version: '8'
-          distribution: 'adopt'
-
-      - name: Build with Maven
-        run: mvn clean package
-
-      - uses: actions/upload-artifact@v4
-        with:
-          path: target/*.jar
-          name: artifacts-${{ matrix.os }}
-
-  make_sdist:
-    name: Make Source Distribution
+  build:
+    name: Build and Test
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 8
+      uses: actions/setup-java@v3
       with:
-        fetch-depth: 0  # Optional, use if your project uses git tags for versioning
-        submodules: true  # Optional, use if you have submodules
+        java-version: '8'
+        distribution: 'temurin'
 
-    - name: Package Source
-      run: |
-        tar -czvf source-distribution.tar.gz --exclude='.git' --exclude='target' .
+    - name: Grant execute permission for gradlew
+      run: chmod +x ./gradlew
 
-    - uses: actions/upload-artifact@v4
+    - name: Cache Gradle packages
+      uses: actions/cache@v3
       with:
-        path: ./source-distribution.tar.gz
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-
 
-  publish:
-    needs: [build_jars]
-    runs-on: ubuntu-latest
-    if: github.event_name == 'release' && github.event.action == 'released'
-    permissions:
-      id-token: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          merge-multiple: true
-          path: dist
+    - name: Build Debug APK
+      run: ./gradlew assembleDebug
 
-      - name: Show downloaded artifacts
-        run: ls -laR dist
+    - name: Run tests
+      run: ./gradlew test
 
-      - name: Publish JAR to Maven Central
-        if: ${{ success() }}
-        uses: samuelmeuli/action-maven-publish@v1
-        with:
-          gpg_private_key: ${{ secrets.gpg_private_key }}
-          gpg_passphrase: ${{ secrets.gpg_passphrase }}
-          nexus_username: ${{ secrets.nexus_username }}
-          nexus_password: ${{ secrets.nexus_password }}
-          repository_url: https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: apk
+        path: app/build/outputs/apk/debug/*.apk
