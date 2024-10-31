@@ -1,6 +1,8 @@
 # For MSVC_RUNTIME_LIBRARY
 cmake_minimum_required(VERSION 3.15)
-
+set(CAPSTONE_ARCHITECTURE_DEFAULT OFF)
+set(CAPSTONE_ARM_SUPPORT ON)
+set(CAPSTONE_AARCH64_SUPPORT ON)
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
     message(FATAL_ERROR "In-tree builds are not supported. Run CMake from a separate directory: cmake -B build")
 endif()
